@@ -198,7 +198,7 @@ mcporter config add kukios \
 
 ## Support
 
-- 📧 Email: hello@what-if.sg
+- 📧 Email: kuki@what-if.sg
 - 🌐 Website: https://what-if.sg
 
 ## License
