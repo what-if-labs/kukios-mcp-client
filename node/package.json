@@ -1,0 +1,35 @@
+{
+  "name": "kukios-mcp-client",
+  "version": "1.0.0",
+  "description": "Official client library for KūkiOS IAQ Monitoring Platform via MCP",
+  "main": "src/KukiOSClient.js",
+  "scripts": {
+    "test": "jest",
+    "lint": "eslint src/",
+    "build": "echo 'No build step required'"
+  },
+  "keywords": [
+    "kukios",
+    "mcp",
+    "iaq",
+    "air-quality",
+    "iot",
+    "sensor"
+  ],
+  "author": "What If Labs <hello@what-if.sg>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/what-if21/kukios-mcp-client"
+  },
+  "dependencies": {
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "eslint": "^8.50.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
