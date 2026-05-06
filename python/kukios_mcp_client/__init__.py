@@ -14,7 +14,7 @@ from .exceptions import (
 
 __version__ = "1.0.0"
 __author__ = "What If Labs"
-__email__ = "hello@what-if.sg"
+__email__ = "kuki@what-if.sg"
 
 __all__ = [
     "KukiOSClient",
