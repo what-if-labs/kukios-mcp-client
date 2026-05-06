@@ -33,7 +33,7 @@ from kukios_mcp_client import KukiOSClient
 client = KukiOSClient(
     url="https://dashbeta.what-if.sg",
     email="user@email.com",
-    password="password"
+    password="your-password"
 )
 
 # List all devices
@@ -43,10 +43,6 @@ print(f"Found {len(devices)} devices")
 # Get IAQ health score
 health = client.get_iaq_health_score(device_id="...")
 print(f"Health Score: {health['health_score']}/100 (Grade {health['grade']})")
-
-# Get latest readings
-readings = client.get_latest_readings(device_id="...")
-print(f"Temperature: {readings['readings'][0]['temperature']}°C")
 ```
 
 ### Node.js
@@ -57,7 +53,7 @@ const { KukiOSClient } = require('kukios-mcp-client');
 const client = new KukiOSClient({
     url: 'https://dashbeta.what-if.sg',
     email: 'user@email.com',
-    password: 'password'
+    password: 'your-password'
 });
 
 // List all devices
@@ -67,10 +63,6 @@ console.log(`Found ${devices.length} devices`);
 // Get IAQ health score
 const health = await client.getIAQHealthScore(deviceId);
 console.log(`Health Score: ${health.health_score}/100 (Grade ${health.grade})`);
-
-// Get latest readings
-const readings = await client.getLatestReadings(deviceId);
-console.log(`Temperature: ${readings.readings[0].temperature}°C`);
 ```
 
 ## API Reference
@@ -161,15 +153,9 @@ try {
 
 ### Environment Variables
 ```bash
-# Python
 export KUKIOS_URL="https://dashbeta.what-if.sg"
 export KUKIOS_EMAIL="user@email.com"
-export KUKIOS_PASSWORD="password"
-
-# Node.js
-export KUKIOS_URL="https://dashbeta.what-if.sg"
-export KUKIOS_EMAIL="user@email.com"
-export KUKIOS_PASSWORD="password"
+export KUKIOS_PASSWORD="your-password"
 ```
 
 ### Advanced Options
@@ -177,7 +163,7 @@ export KUKIOS_PASSWORD="password"
 client = KukiOSClient(
     url="https://dashbeta.what-if.sg",
     email="user@email.com",
-    password="password",
+    password="your-password",
     timeout=30,  # Request timeout in seconds
     max_retries=3,  # Maximum retry attempts
     retry_delay=1,  # Initial retry delay in seconds
@@ -212,7 +198,7 @@ mcporter config add kukios \
 
 ## Support
 
-- 📧 Email: kuki@what-if.sg
+- 📧 Email: hello@what-if.sg
 - 🌐 Website: https://what-if.sg
 
 ## License
