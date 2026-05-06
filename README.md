@@ -208,6 +208,8 @@ mcporter config add kukios \
   --header "Authorization: Bearer YOUR_TOKEN"
 ```
 
+**Note:** KūkiOS MCP server is cloud-hosted. All connections go to `https://dashbeta.what-if.sg`. No local MCP server required.
+
 ## Support
 
 - 📧 Email: kuki@what-if.sg

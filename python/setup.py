@@ -11,7 +11,7 @@ setup(
     description="Official client library for KūkiOS IAQ Monitoring Platform via MCP",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/what-if21/kukios-mcp-client",
+    url="https://github.com/what-if-labs/kukios-mcp-client",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 4 - Beta",

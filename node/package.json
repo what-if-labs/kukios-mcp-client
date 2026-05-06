@@ -20,7 +20,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/what-if21/kukios-mcp-client"
+    "url": "https://github.com/what-if-labs/kukios-mcp-client"
   },
   "dependencies": {
     "axios": "^1.6.0"
