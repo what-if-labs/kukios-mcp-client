@@ -8,8 +8,8 @@ from kukios_mcp_client import KukiOSClient
 # Initialize client
 client = KukiOSClient(
     url="https://dashbeta.what-if.sg",
-    email="admin@what-if.sg",
-    password="admin123"
+    email="your@email.com",
+    password="your-password"
 )
 
 # List all devices

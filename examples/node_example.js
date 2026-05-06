@@ -9,8 +9,8 @@ async function main() {
     // Initialize client
     const client = new KukiOSClient({
         url: 'https://dashbeta.what-if.sg',
-        email: 'admin@what-if.sg',
-        password: 'admin123'
+        email: 'your@email.com',
+        password: 'your-password'
     });
     
     // List all devices
