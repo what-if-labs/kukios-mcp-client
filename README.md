@@ -210,9 +210,8 @@ mcporter config add kukios \
 
 ## Support
 
-- 📧 Email: hello@what-if.sg
+- 📧 Email: kuki@what-if.sg
 - 🌐 Website: https://what-if.sg
-- 📚 Documentation: https://docs.what-if.sg
 
 ## License
 
