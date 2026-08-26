@@ -110,7 +110,7 @@ class KukiOSClient {
             this.ready = Promise.resolve();
         }
     }
-    
+
     _headers() {
         const headers = {
             'Content-Type': 'application/json',
@@ -121,13 +121,17 @@ class KukiOSClient {
         }
         return headers;
     }
-    
+
+
     _checkTokenExpiry() {
         if (!this._tokenExpiry) {
             return true;
         }
-        // Refresh if token expires within 24 hours
-        return Date.now() > (this._tokenExpiry - 86400000);
+        // Access tokens are short-lived (backend issues expiresIn=900s).
+        // Proactively refresh only in the final minute; the 401 handler
+        // covers the rest. Refreshing earlier would burn the backend's
+        // /api/auth/* rate limit (10 requests / 15 min) on every call.
+        return Date.now() > (this._tokenExpiry - 60000);
     }
     
     _jwtExp(token) {
@@ -164,7 +168,8 @@ class KukiOSClient {
             const response = await this.axios.post('/api/auth/refresh', {
                 refreshToken: this._refreshToken
             });
-            if (!response.data || !response.data.success || !response.data.tokens) {
+            const data = KukiOSClient._unwrapEnvelope(response.data);
+            if (!data || !data.tokens) {
                 return false;
             }
             this._storeTokens(
@@ -186,12 +191,13 @@ class KukiOSClient {
                 email: this.email,
                 password: this.password
             });
-            if (!response.data || !response.data.success || !response.data.tokens) {
+            const data = KukiOSClient._unwrapEnvelope(response.data);
+            if (!data || !data.tokens) {
                 return false;
             }
             this._storeTokens(
-                response.data.tokens.accessToken,
-                response.data.tokens.refreshToken,
+                data.tokens.accessToken,
+                data.tokens.refreshToken,
             );
             return true;
         } catch {
@@ -260,15 +266,16 @@ class KukiOSClient {
             }
 
             if (response.status >= 200 && response.status < 300) {
-                return response.status === 204 || !response.data ? {} : response.data;
+                if (response.status === 204 || !response.data) return {};
+                return KukiOSClient._unwrapEnvelope(response.data);
             }
 
             if (response.status >= 400 && response.status < 500) {
                 if (response.status === 401) {
-                    throw new KukiOSAuthError('Authentication failed');
+                    throw new KukiOSAuthError(KukiOSClient._serverError(response));
                 }
                 throw new KukiOSAPIError(
-                    `API error: ${response.status}`,
+                    KukiOSClient._serverError(response),
                     response.status,
                     response.data
                 );
@@ -322,7 +329,7 @@ class KukiOSClient {
          * @returns {Object} Authentication response with tokens
          */
         const data = await this.post('/api/auth/login', { email, password });
-        if (data && data.success && data.tokens) {
+        if (data && data.tokens) {
             this._storeTokens(data.tokens.accessToken, data.tokens.refreshToken);
             this.email = email;
             this.password = password;
@@ -338,7 +345,7 @@ class KukiOSClient {
          * @returns {Object} Refresh response with new tokens
          */
         const data = await this.post('/api/auth/refresh', { refreshToken });
-        if (data && data.success && data.tokens) {
+        if (data && data.tokens) {
             this._storeTokens(data.tokens.accessToken, data.tokens.refreshToken);
         }
         return data;
@@ -419,11 +426,23 @@ class KukiOSClient {
     async getDevice(deviceId) {
         /**
          * Get device details.
-         * 
+         *
+         * Tries GET /api/devices/{id} first; the deployed backend does not
+         * mount that route, so on 404 this falls back to a list scan.
+         *
          * @param {string} deviceId - Device UUID
          * @returns {Object} Device object
          */
-        return this.get(`/api/devices/${deviceId}`);
+        try {
+            return await this.get(`/api/devices/${deviceId}`);
+        } catch (e) {
+            if (!(e instanceof KukiOSAPIError) || e.statusCode !== 404) throw e;
+        }
+        const device = await this._findDevice(deviceId);
+        if (!device) {
+            throw new KukiOSAPIError(`Device not found: ${deviceId}`, 404, null);
+        }
+        return device;
     }
     
     async createDevice(name, buildingId, ...extra) {
@@ -571,6 +590,32 @@ class KukiOSClient {
         const readings = await this.getLatestReadings(deviceId);
         const rows = readings && Array.isArray(readings.readings) ? readings.readings : null;
         return rows && rows.length ? rows[0] : null;
+    }
+
+    /**
+     * Unwrap the backend's {success, data, error} response envelope.
+     * The kukios API wraps every payload via wrapResponse middleware.
+     */
+    static _unwrapEnvelope(payload) {
+        if (
+            payload && typeof payload === 'object' && !Array.isArray(payload)
+            && 'data' in payload
+            && ('success' in payload || 'error' in payload)
+        ) {
+            return payload.data === null || payload.data === undefined ? {} : payload.data;
+        }
+        return payload;
+    }
+
+    /** Best-effort extraction of the server's error code/message. */
+    static _serverError(response) {
+        let detail = '';
+        const body = response && response.data;
+        if (body && typeof body === 'object') {
+            detail = String(body.error || body.message || '');
+        }
+        const msg = `API error: ${response.status}`;
+        return detail ? `${msg} (${detail})` : msg;
     }
 
     static _paramScore(value, thresholds) {

@@ -27,6 +27,37 @@ def _jwt_exp(token: str) -> float | None:
         return None
 
 
+def _unwrap_envelope(payload):
+    """
+    Unwrap the backend's {success, data, error} response envelope.
+
+    The kukios API wraps every payload via wrapResponse middleware.
+    Returns the inner `data` value when the envelope is detected;
+    otherwise the payload unchanged (some routes may bypass it).
+    """
+    if (
+        isinstance(payload, dict)
+        and "data" in payload
+        and ("success" in payload or "error" in payload)
+    ):
+        inner = payload["data"]
+        return inner if inner is not None else {}
+    return payload
+
+
+def _server_error(resp) -> str:
+    """Best-effort extraction of the server's error code/message."""
+    detail = ""
+    try:
+        body = resp.json()
+        if isinstance(body, dict):
+            detail = str(body.get("error") or body.get("message") or "")
+    except Exception:
+        pass
+    msg = f"API error: {resp.status_code}"
+    return f"{msg} ({detail})" if detail else msg
+
+
 # IAQ thresholds — mirrors kukios-mcp-server (IAQ_THRESHOLDS).
 # Range-based params use (good, warning, critical) tuple ranges;
 # scalar params use upper-bound thresholds.
@@ -134,23 +165,16 @@ class KukiOSClient:
             f"KukiOSClient(url={self.url!r}, email={_REDACTED}, "
             f"password={_REDACTED})"
         )
-    
-    def _headers(self) -> Dict[str, str]:
-        """Get request headers with authorization."""
-        headers = {
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-        }
-        if self._token:
-            headers["Authorization"] = f"Bearer {self._token}"
-        return headers
-    
+
     def _check_token_expiry(self) -> bool:
-        """Check if token needs refresh."""
+        """Return True when the token needs refresh."""
         if self._token_expiry is None:
             return True
-        # Refresh if token expires within 24 hours
-        return time.time() > (self._token_expiry - 86400)
+        # Access tokens are short-lived (backend issues expiresIn=900s).
+        # Proactively refresh only in the final minute; the 401 handler
+        # covers the rest. Refreshing earlier would burn the backend's
+        # /api/auth/* rate limit (10 requests / 15 min) on every call.
+        return time.time() > (self._token_expiry - 60)
 
     def _store_tokens(self, access_token: str, refresh_token: str | None) -> None:
         """Persist a token pair and derive its expiry from the JWT `exp` claim."""
@@ -178,8 +202,8 @@ class KukiOSClient:
             )
             if resp.status_code != 200:
                 return False
-            data = resp.json()
-            if not (data.get("success") and data.get("tokens")):
+            data = _unwrap_envelope(resp.json())
+            if not (isinstance(data, dict) and data.get("tokens")):
                 return False
             self._store_tokens(
                 data["tokens"]["accessToken"],
@@ -203,8 +227,8 @@ class KukiOSClient:
             )
             if resp.status_code != 200:
                 return False
-            data = resp.json()
-            if not (data.get("success") and data.get("tokens")):
+            data = _unwrap_envelope(resp.json())
+            if not (isinstance(data, dict) and data.get("tokens")):
                 return False
             self._store_tokens(
                 data["tokens"]["accessToken"],
@@ -221,6 +245,16 @@ class KukiOSClient:
 
         # Try refresh token first, then full re-authentication.
         return self._auto_refresh_token() or self._auto_reauthenticate()
+
+    def _headers(self) -> Dict[str, str]:
+        """Get request headers with authorization."""
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        }
+        if self._token:
+            headers["Authorization"] = f"Bearer {self._token}"
+        return headers
 
     def _send(self, method: str, url: str, json_data: dict = None) -> requests.Response:
         """Single HTTP attempt; no retries, no auth handling."""
@@ -270,14 +304,14 @@ class KukiOSClient:
             if 200 <= resp.status_code < 300:
                 if resp.status_code == 204 or not resp.content:
                     return {}
-                return resp.json()
+                return _unwrap_envelope(resp.json())
 
             # 4xx other than 401: don't retry, surface immediately.
             if 400 <= resp.status_code < 500:
                 if resp.status_code == 401:
-                    raise KukiOSAuthError("Authentication failed")
+                    raise KukiOSAuthError(_server_error(resp))
                 raise KukiOSAPIError(
-                    f"API error: {resp.status_code}",
+                    _server_error(resp),
                     status_code=resp.status_code,
                     response=resp.text,
                 )
@@ -335,7 +369,7 @@ class KukiOSClient:
             Authentication response with tokens
         """
         data = self.post("/api/auth/login", {"email": email, "password": password})
-        if data.get("success") and data.get("tokens"):
+        if isinstance(data, dict) and data.get("tokens"):
             self._store_tokens(
                 data["tokens"]["accessToken"],
                 data["tokens"].get("refreshToken"),
@@ -355,7 +389,7 @@ class KukiOSClient:
             Refresh response with new tokens
         """
         data = self.post("/api/auth/refresh", {"refreshToken": refresh_token})
-        if data.get("success") and data.get("tokens"):
+        if isinstance(data, dict) and data.get("tokens"):
             self._store_tokens(
                 data["tokens"]["accessToken"],
                 data["tokens"].get("refreshToken"),
@@ -437,19 +471,33 @@ class KukiOSClient:
             raw response is returned as a list.
         """
         data = self.get("/api/devices")
-        return data if isinstance(data, list) else data.get("data", [])
-    
+        return self._unwrap_list(data)
+
     def get_device(self, device_id: str) -> dict:
         """
         Get device details.
-        
+
+        Tries GET /api/devices/{id} first; the deployed backend does not
+        mount that route, so on 404 this falls back to a list scan.
+
         Args:
             device_id: Device UUID
-            
+
         Returns:
             Device object
         """
-        return self.get(f"/api/devices/{device_id}")
+        try:
+            return self.get(f"/api/devices/{device_id}")
+        except KukiOSAPIError as e:
+            if e.status_code != 404:
+                raise
+        device = self._find_device(device_id)
+        if device is None:
+            raise KukiOSAPIError(
+                f"Device not found: {device_id}",
+                status_code=404,
+            )
+        return device
     
     def create_device(self, name: str, building_id: str, **kwargs) -> dict:
         """
