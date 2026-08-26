@@ -83,32 +83,37 @@ console.log(`Health Score: ${health.health_score}/100 (Grade ${health.grade})`);
 - `create_device(name, building_id, ...)` - Create new device
 - `update_device_position(device_id, x, y)` - Update floorplan position
 - `delete_device(device_id)` - Delete device
-- `batch_get_devices(device_ids)` - Get multiple devices
+- `batch_get_devices(device_ids)` - Get multiple devices (concurrent fan-out)
 
 ### Readings
 - `get_latest_readings(device_id)` - Get latest sensor data
-- `get_historical_readings(device_id, start, end)` - Get historical data
-- `batch_get_latest_readings(device_ids)` - Get readings for multiple devices
+- `get_historical_readings(device_id, days=30)` - Get historical data (backend takes a `days` window)
+- `get_device_readings(device_id, start, end, limit, aggregate)` - Readings over a time window
+- `batch_get_latest_readings(device_ids)` - Readings for multiple devices (concurrent fan-out)
 
-### IAQ Analysis
-- `analyze_iaq_quality(device_id)` - Analyze with recommendations
-- `get_iaq_recommendations(device_id)` - Get prioritized actions
-- `get_iaq_health_score(device_id)` - Get health score (0-100)
-- `compare_to_standards(device_id, standard)` - Compare against standards
+### IAQ Analysis (computed client-side, mirrors kukios-mcp-server)
+- `analyze_iaq_quality(device_id, standard_code="GOAQS")` - Analyze with issues + prioritized actions
+- `get_iaq_recommendations(building_id=None)` - Prioritized actions across devices
+- `get_iaq_health_score(device_id)` - Health score 0-100 with grade + parameter breakdown
+- `compare_to_standards(device_id, standard="SS554")` - Compare latest readings against standard thresholds
 
 ### Compliance
 - `list_standards()` - List compliance standards
-- `calculate_compliance(device_id, standard)` - Calculate compliance grade
+- `calculate_compliance(device_id, standard_id, start_time, end_time)` - Server-side calculation over a window
 
 ### Reports
-- `list_reports()` - List reports
-- `generate_report_pdf(building_id)` - Generate PDF report
+- `list_reports(page=1, page_size=100)` - List reports
+- `generate_report_pdf(report_id)` - Generate PDF for an existing report
+
+### Operations
+- `health_check()` - Platform health (GET /health)
+- `get_realtime_status()` - Real-time system status
+- `get_sensor_history(device_id, hours=24)` - Sensor history
 
 ### Alerts
-- `list_alerts(status, severity, device_id)` - List IAQ alerts
-- `acknowledge_alert(alert_id)` - Acknowledge alert
-- `resolve_alert(alert_id)` - Resolve alert
-
+- `list_alerts(status, severity, device_id, building_id, standard_code, page=1, page_size=50)` - List IAQ alerts
+- `acknowledge_alert(alert_id, notes="")` - Acknowledge alert
+- `resolve_alert(alert_id, resolution="")` - Resolve alert
 ## Auto Re-Authentication
 
 The client automatically handles token expiry and refresh:
@@ -152,10 +157,15 @@ try {
 ## Configuration
 
 ### Environment Variables
+
+`IAQ_*` variables match the kukios-mcp-server convention; `KUKIOS_*` aliases are kept for compatibility.
 ```bash
-export KUKIOS_URL="https://dashbeta.what-if.sg"
-export KUKIOS_EMAIL="user@email.com"
-export KUKIOS_PASSWORD="your-password"
+export IAQ_REPORTER_URL="https://dashbeta.what-if.sg"   # or KUKIOS_URL
+export IAQ_EMAIL="user@email.com"                       # or KUKIOS_EMAIL
+export IAQ_PASSWORD="your-password"                     # or KUKIOS_PASSWORD
+# Optional pre-authenticated tokens (skip login):
+export IAQ_TOKEN="..."
+export IAQ_REFRESH_TOKEN="..."
 ```
 
 ### Advanced Options
@@ -164,10 +174,9 @@ client = KukiOSClient(
     url="https://dashbeta.what-if.sg",
     email="user@email.com",
     password="your-password",
-    timeout=30,  # Request timeout in seconds
-    max_retries=3,  # Maximum retry attempts
-    retry_delay=1,  # Initial retry delay in seconds
-    cache_ttl=300  # Cache TTL in seconds
+    timeout=30,      # Request timeout in seconds
+    max_retries=3,   # Maximum retry attempts
+    retry_delay=1,   # Initial retry delay in seconds
 )
 ```
 

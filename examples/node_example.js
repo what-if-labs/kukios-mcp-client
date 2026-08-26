@@ -6,12 +6,13 @@
 const { KukiOSClient } = require('../node/src/KukiOSClient');
 
 async function main() {
-    // Initialize client
+    // Initialize client (env vars: KUKIOS_URL, KUKIOS_EMAIL, KUKIOS_PASSWORD)
     const client = new KukiOSClient({
-        url: 'https://dashbeta.what-if.sg',
-        email: 'your@email.com',
-        password: 'your-password'
+        url: process.env.KUKIOS_URL || 'https://dashbeta.what-if.sg',
+        email: process.env.KUKIOS_EMAIL,
+        password: process.env.KUKIOS_PASSWORD,
     });
+    await client.ready;
     
     // List all devices
     console.log('=== Listing Devices ===');

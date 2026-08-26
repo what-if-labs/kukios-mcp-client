@@ -3,13 +3,14 @@
 KūkiOS MCP Client - Python Example
 """
 
+import os
 from kukios_mcp_client import KukiOSClient
 
-# Initialize client
+# Initialize client (env vars: KUKIOS_URL, KUKIOS_EMAIL, KUKIOS_PASSWORD)
 client = KukiOSClient(
-    url="https://dashbeta.what-if.sg",
-    email="your@email.com",
-    password="your-password"
+    url=os.getenv("KUKIOS_URL", "https://dashbeta.what-if.sg"),
+    email=os.getenv("KUKIOS_EMAIL"),
+    password=os.getenv("KUKIOS_PASSWORD"),
 )
 
 # List all devices
